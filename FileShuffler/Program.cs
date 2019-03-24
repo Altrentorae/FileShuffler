@@ -7,9 +7,28 @@ using System.Threading.Tasks;
 
 namespace FileShuffler {
     class Program {
-        static void Main(string[] args) {
 
-            if (args.Length > 0) {
+        static bool outputToWindow = true, timecheck = true;
+        static SearchOption searchOption = SearchOption.TopDirectoryOnly;
+
+        static void Main(string[] args) {
+            if (args.Contains("-silent")) { //Override console window output
+                outputToWindow = false;
+            }
+            if (args.Contains("-silent--notime")) { //Override console window output
+                outputToWindow = false;
+                timecheck = false;
+            }
+            if (args.Contains("-recurse")) { //All subdirectories included
+                searchOption = SearchOption.AllDirectories;
+            }
+
+            List<string> argList = new List<string>(args);
+            argList.Remove("-silent");
+            argList.Remove("-silent--notime");
+            argList.Remove("-recurse");
+            args = argList.Select(i => i.ToString()).ToArray();
+            if (args.Length > 0) {    
                 for (int i = 0; i < args.Length; i++) {
                     switch (args[i]) {
                         default: Shuffle(args[i]); break;
@@ -55,38 +74,43 @@ namespace FileShuffler {
             return fileExts.ToArray();
         }
 
+
+        static List<string> fileList;
+        static int getNum(string[] files, int num, string exten) {
+            
+            System.Diagnostics.Debug.WriteLine(Environment.CurrentDirectory+"\\"+num.ToString()+exten);
+            System.Diagnostics.Debug.WriteLine(files.ToList().Contains(Environment.CurrentDirectory + "\\" + num.ToString() + exten));
+            if (files.ToList().Contains(Environment.CurrentDirectory + "\\" + num.ToString() + exten)) {
+                num++;
+                return getNum(files, num, exten);
+            }
+            if (num == 10) {
+                num++;
+                return getNum(files, num, exten);
+            }
+            fileList.Add(Environment.CurrentDirectory + "\\" + num.ToString() + exten);
+            return num;
+            
+        }
+
+
         static void Shuffle(string extension) {
-
-            string[] files = Directory.GetFiles(Environment.CurrentDirectory, $@"*{extension}");
-
-            Random rnd = new Random();
-            List<string> temp = new List<string>();
-            for (int i = 0; i < files.Length; i++) {
-                string s;
-                while (true) {
-                    s = rnd.Next(1, 10000).ToString();
-                    if (temp.Contains(s)) {
-                        continue;
-                    }
-                    else {
-                        temp.Add(s);
-                        break;
-                    }
-                }
+            DateTime time = DateTime.Now;
+            if (timecheck) { Console.WriteLine($@"----------Shuffling {extension}----------"); }
+            string[] files = Directory.GetFiles(Environment.CurrentDirectory, $@"*{extension}",searchOption);
+            fileList = files.ToList();
+            fileList.ShuffleList();
+            string fileListSize = fileList.Count.ToString();
+            for (int i=0; i < files.Length; i++) {
+                System.Diagnostics.Debug.WriteLine($"----------{i}----------");
+                string newName = getNum(fileList.ToArray(),i,extension).ToString();;
+                if (outputToWindow) { Console.WriteLine($"({i.ToString().PadLeft(6, '0')} of {fileListSize} | {fileList[i]} => {newName}"); }
+                fileList.Add(Environment.CurrentDirectory + "\\" + i.ToString() + extension);
+                File.Move(fileList[i], newName + $@"{extension}"); //rename file
+                
             }
-            string[] fnames = temp.ToArray();
-            int fLen = fnames.Length;
-            foreach (string file in files) {
-                fnames = fnames.Where(x => x != file).ToArray(); //remove existing, probably from previous shuffle
-            }
-
-            foreach (string file in files) {
-
-                string newName = fnames[rnd.Next(fnames.Length - 1)]; //get new name
-                fnames = fnames.Where(x => x != newName).ToArray(); //remove new name from possible name
-                File.Move(file, newName + $@"{extension}"); //rename file
-                fnames = fnames.Where(x => x != newName).ToArray(); //remove new name from files, idk why I need to do it twice but it works
-            }
+            TimeSpan timeSpan = (DateTime.Now - time);
+            if (timecheck) { Console.WriteLine($@"----------{extension} Finished in {timeSpan.Minutes} Mins : {timeSpan.Seconds} Secs----------"); }
         } 
     }
 }
